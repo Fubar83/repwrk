@@ -41,7 +41,7 @@ jobs:
           node-version: '22'
       # Install the tarball npm would publish, so a file missing from
       # "files" fails here rather than for whoever installs the release.
-      - run: npm pack
-      - run: npm install --global ./fubar83-repwrk-*.tgz
+      # The tarball name follows the package name, so ask npm for it.
+      - run: npm install --global "$(npm pack --silent)"
       - run: repwrk --version
       - run: repwrk --help
