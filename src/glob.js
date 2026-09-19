@@ -72,7 +72,7 @@ export function pathGlobToRegExp(pattern) {
       continue;
     }
 
-    source += char.replace(REGEXP_SPECIALS, '\$&');
+    source += char.replace(REGEXP_SPECIALS, '\\$&');
     index += 1;
   }
 

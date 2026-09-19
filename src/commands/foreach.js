@@ -1,4 +1,5 @@
 import { spawn } from '../spawn.js';
+import { existsSync } from 'node:fs';
 import { availableParallelism } from 'node:os';
 import { EXIT, RuntimeError } from '../errors.js';
 import { resolveWorkUnits } from '../workspace.js';
@@ -44,6 +45,15 @@ function runCommand(command, args, { cwd, capture }) {
   });
 }
 
+/**
+ * A spawn fails with ENOENT both when the command does not exist and when the
+ * directory it would run in does not, so the two are told apart by looking. A
+ * directory that has gone away is one unit's problem, not the whole run's.
+ */
+function missingDirectory(result, unit) {
+  return result.spawnError?.code === 'ENOENT' && !existsSync(unit.path);
+}
+
 /** A command that cannot start fails identically everywhere, so stop the run. */
 function assertStartable(result, command) {
   if (result.spawnError?.code === 'ENOENT') {
@@ -62,6 +72,13 @@ async function runSequentially(units, command, args) {
   for (const unit of units) {
     process.stderr.write(`\n==> ${unit.name}\n`);
     const result = await runCommand(command, args, { cwd: unit.path, capture: false });
+
+    if (missingDirectory(result, unit)) {
+      failures.push({ unit, code: result.code });
+      process.stderr.write('    directory no longer exists, skipped\n');
+      continue;
+    }
+
     assertStartable(result, command);
     if (result.code !== 0) {
       failures.push({ unit, code: result.code });
@@ -96,7 +113,9 @@ async function runInParallel(units, command, args) {
     Array.from({ length: Math.min(CONCURRENCY, units.length) }, () => worker()),
   );
 
-  for (const result of results) assertStartable(result, command);
+  results.forEach((result, index) => {
+    if (!missingDirectory(result, units[index])) assertStartable(result, command);
+  });
 
   const failures = [];
   results.forEach((result, index) => {
@@ -104,6 +123,11 @@ async function runInParallel(units, command, args) {
     // Every line of output is attributable: the header names the unit it
     // belongs to, and a unit's output is never split across other units'.
     process.stderr.write(`\n==> ${unit.name}\n`);
+    if (missingDirectory(result, unit)) {
+      failures.push({ unit, code: result.code });
+      process.stderr.write('    directory no longer exists, skipped\n');
+      return;
+    }
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
     if (result.code !== 0) {

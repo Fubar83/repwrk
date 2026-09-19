@@ -31,6 +31,16 @@ export async function discoverRepos(workspace) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
+async function listFiles(repo, selectors) {
+  const { code, stdout, stderr } = await runGit(['ls-files', ...selectors, '-z'], {
+    cwd: repo.path,
+  });
+  if (code !== 0) {
+    throw new RuntimeError(`could not read ${repo.name}: ${stderr}`, { component: 'git' });
+  }
+  return stdout.split('\0').filter(Boolean);
+}
+
 /**
  * Every path git considers part of a repository — tracked files plus untracked
  * ones that are not ignored.
@@ -42,15 +52,16 @@ export async function discoverRepos(workspace) {
  * pattern like `../*` matches nothing.
  */
 async function repositoryPaths(repo) {
-  const { code, stdout, stderr } = await runGit(
-    ['ls-files', '--cached', '--others', '--exclude-standard', '-z'],
-    { cwd: repo.path },
-  );
-  if (code !== 0) {
-    throw new RuntimeError(`could not read ${repo.name}: ${stderr}`, { component: 'git' });
-  }
+  // --cached lists a file that is tracked but no longer in the working tree, so
+  // the deleted ones are subtracted: a target has to be a directory a command
+  // can actually run in.
+  const [listed, deleted] = await Promise.all([
+    listFiles(repo, ['--cached', '--others', '--exclude-standard']),
+    listFiles(repo, ['--deleted']),
+  ]);
 
-  const files = stdout.split('\0').filter(Boolean);
+  const gone = new Set(deleted);
+  const files = listed.filter((file) => !gone.has(file));
 
   // A directory exists, as far as a glob is concerned, if a file lives under it.
   const directories = new Set();

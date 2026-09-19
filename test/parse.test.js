@@ -192,6 +192,17 @@ test('inline option values are accepted', () => {
   assert.equal(parse(['foreach', '--at=**/*lambda']).at, '**/*lambda');
 });
 
+// An unset shell variable expands to an empty argument. Read as "no filter",
+// `--filter ""` would widen a selection to every repository the owner has, so
+// an empty value is a mistake rather than a default.
+test('an empty option value is refused, not read as the option being absent', () => {
+  refuses(['clone', '--owner', 'my-org', '--filter', ''], '--filter requires a value');
+  refuses(['clone', '--owner', 'my-org', '--filter='], '--filter requires a value');
+  refuses(['clone', '--owner', ''], '--owner requires a value');
+  refuses(['foreach', '--at', '', 'pnpm', 'test'], '--at requires a glob');
+  refuses(['foreach', '--at='], '--at requires a glob');
+});
+
 // Top level
 
 test('an unknown subcommand is refused', () => {

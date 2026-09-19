@@ -6,7 +6,7 @@ import { EXIT, RuntimeError, UsageError } from '../errors.js';
 import { branchRepos } from '../git/branch.js';
 import { isValidBranchName } from '../git/git.js';
 import { GhError, runGh } from '../github/gh.js';
-import { listRepos } from '../github/repos.js';
+import { LIST_LIMIT, listRepos } from '../github/repos.js';
 import { isRepository } from '../workspace.js';
 
 /**
@@ -110,9 +110,10 @@ export async function clone({ owner, filter, branch, yes }) {
   const directory = process.cwd();
 
   let repos;
+  let truncated;
   try {
     // Without --owner, gh's own default applies: the authenticated account.
-    ({ repos } = await listRepos({
+    ({ repos, truncated } = await listRepos({
       owner: owner ?? undefined,
       patterns: filter ? [filter] : [],
     }));
@@ -121,6 +122,15 @@ export async function clone({ owner, filter, branch, yes }) {
       throw new RuntimeError(error.message, { component: 'api' });
     }
     throw error;
+  }
+
+  // --filter is applied to what GitHub returned, so a listing that reached the
+  // limit may be missing repositories the filter would have matched.
+  if (truncated) {
+    process.stderr.write(
+      `repwrk: GitHub returned the listing limit of ${LIST_LIMIT} repositories; ` +
+        'any beyond that were not considered\n',
+    );
   }
 
   if (repos.length === 0) {

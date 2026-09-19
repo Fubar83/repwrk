@@ -158,3 +158,42 @@ test('a match at the repository root targets the repository itself', async () =>
   assert.equal(target.name, 'api');
   assert.equal(target.path, path.join(workspace, 'api'));
 });
+
+test('a literal dot in a glob is a dot, not "any character"', async () => {
+  const workspace = await makeWorkspace({
+    api: {
+      'services/good-lambda/package.json': '',
+      // One character away from package.json, and not a package file at all.
+      'services/bad-lambda/packageXjson': '',
+    },
+  });
+
+  const targets = await targetsIn(repoIn(workspace, 'api'), '**/*lambda/package.json');
+  assert.deepEqual(names(targets), ['api/services/good-lambda']);
+});
+
+test('a regex metacharacter in a glob is matched literally, never compiled', async () => {
+  const workspace = await makeWorkspace({ api: { 'services/a+b(c)/package.json': '' } });
+  const repo = repoIn(workspace, 'api');
+
+  // An unbalanced bracket is not a valid regex; it must not reach one.
+  assert.deepEqual(await targetsIn(repo, 'services/[legacy/package.json'), []);
+  // And a path that really does contain metacharacters is still reachable.
+  assert.deepEqual(names(await targetsIn(repo, 'services/a+b(c)')), ['api/services/a+b(c)']);
+});
+
+test('a tracked file deleted from the working tree is not a target', async () => {
+  const workspace = await makeWorkspace({
+    api: { 'services/a-lambda/package.json': '', 'services/b-lambda/package.json': '' },
+  });
+  const repo = repoIn(workspace, 'api');
+
+  await runGit(['add', '-A'], { cwd: repo.path });
+  await runGit(['-c', 'user.email=t@t', '-c', 'user.name=t', 'commit', '-qm', 'in'], {
+    cwd: repo.path,
+  });
+  // Tracked, so `ls-files --cached` still reports it; gone, so nothing can run there.
+  await rm(path.join(repo.path, 'services/a-lambda'), { recursive: true, force: true });
+
+  assert.deepEqual(names(await targetsIn(repo, '**/*lambda')), ['api/services/b-lambda']);
+});

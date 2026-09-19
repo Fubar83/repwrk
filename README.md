@@ -63,6 +63,8 @@ repwrk clone --owner my-org --filter "customer-*"
 
 Archived repositories are never in scope.
 
+GitHub is asked for at most 1000 repositories. If it returns that many there may be more behind the limit, and `repwrk` says so on stderr rather than letting a filtered result look complete.
+
 **`--filter <glob>`** applies to repository *names*, anchored and case-insensitive: `customer-*` matches `customer-api` but not `old-customer-api`. It does not affect local directory matching. Omitted, every repository in scope is selected.
 
 **`--branch <branch>`** creates or checks out the branch in repositories **cloned by this invocation**. A repository that already exists locally is skipped and its git state is never modified — not its branch, not its working tree. The branch name is validated by `git check-ref-format` before any cloning, so a typo fails in a second rather than after thirty clones. A branch that already exists on the remote is checked out and tracked rather than recreated, so two machines don't start parallel histories under one name.
@@ -125,6 +127,8 @@ repwrk foreach --at "**/*lambda/package.json" pnpm audit
 - Targets are deduplicated — two matches in one directory are one target.
 - **Git ignore rules are respected.** Targets come from what git considers part of the repository, so anything in `.gitignore` is invisible. `node_modules` is skipped because the repository says so, not because this tool has opinions about it.
 - Targets outside the repository are rejected.
+- Only `*`, `?` and `**/` are glob syntax. Everything else is literal, so the `.` in `package.json` is a dot rather than "any character".
+- A tracked file that has been deleted from the working tree is not a target — a target is somewhere a command can actually run. If a directory disappears after it was listed, that target alone fails and the rest of the run continues.
 
 ### `--parallel`
 
@@ -168,6 +172,13 @@ An option repwrk does not recognise is an **error**, never something handed to t
 ```console
 $ repwrk foreach --paralel dotnet test
 error: unknown option '--paralel'
+```
+
+An **empty** value is an error too, rather than the option being treated as absent. An unset shell variable is the usual way to produce one, and reading `--filter ""` as "no filter" would widen a selection to everything instead of narrowing it:
+
+```console
+$ repwrk clone --owner my-org --filter "$UNSET"
+error: --filter requires a value
 ```
 
 `--` may end repwrk's options explicitly, but is never required:

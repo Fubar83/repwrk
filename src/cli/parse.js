@@ -70,8 +70,10 @@ function parseOptions(argv, spec, hint) {
     const attached = inlineValue(token);
     const value = attached ?? argv[index + 1];
 
-    // An option cannot swallow the next option as its value.
-    if (value === undefined || (attached === null && isOption(value))) {
+    // An option cannot swallow the next option as its value, and an empty value
+    // — usually an unset shell variable — must not read as "option not given":
+    // `--filter ""` would otherwise widen the selection to every repository.
+    if (value === undefined || value === '' || (attached === null && isOption(value))) {
       throw new UsageError(`${key} requires ${definition.requires}`, { hint });
     }
 

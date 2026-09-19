@@ -43,9 +43,12 @@ async function run(argv) {
 }
 
 // Piping into `head` and friends closes stdout early; that is not an error.
+// Any other write failure is real and is reported the way every other failure
+// is: throwing from inside a listener would surface as an uncaught exception,
+// with a stack trace in place of the message.
 process.stdout.on('error', (error) => {
   if (error.code === 'EPIPE') process.exit(EXIT.SUCCESS);
-  throw error;
+  process.exit(reportError(error));
 });
 
 try {

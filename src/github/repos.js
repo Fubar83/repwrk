@@ -1,6 +1,12 @@
 import { GhError, ghJson, runGh } from './gh.js';
 import { matches, matchesAny } from '../glob.js';
 
+/**
+ * How many repositories to ask `gh` for. Reaching it means GitHub had more to
+ * give, which `listRepos` reports as `truncated`.
+ */
+export const LIST_LIMIT = 1000;
+
 /** Fields requested from `gh repo list --json`. */
 const GH_FIELDS = [
   'name',
@@ -135,7 +141,7 @@ export async function listRepos({
   archived = 'exclude',
   kind = 'all',
   visibility,
-  limit = 1000,
+  limit = LIST_LIMIT,
 } = {}) {
   const args = ['repo', 'list'];
   if (owner) args.push(owner);
