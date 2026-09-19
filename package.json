@@ -1,0 +1,46 @@
+{
+  "name": "@fubar83/repwrk",
+  "version": "0.1.0",
+  "description": "Work across many repositories at once: clone a set into a folder, then run commands across all of them",
+  "keywords": [
+    "github",
+    "gh",
+    "git",
+    "cli",
+    "monorepo",
+    "multi-repo"
+  ],
+  "license": "MIT",
+  "author": "Henrik Johansson (https://github.com/Fubar83)",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Fubar83/repwrk.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Fubar83/repwrk/issues"
+  },
+  "homepage": "https://github.com/Fubar83/repwrk#readme",
+  "type": "module",
+  "engines": {
+    "node": ">=22"
+  },
+  "bin": {
+    "repwrk": "bin/repwrk.js"
+  },
+  "main": "src/index.js",
+  "exports": {
+    ".": "./src/index.js"
+  },
+  "files": [
+    "bin",
+    "src",
+    "README.md"
+  ],
+  "publishConfig": {
+    "access": "public"
+  },
+  "scripts": {
+    "test": "node --test",
+    "prepublishOnly": "node --test"
+  }
+}
