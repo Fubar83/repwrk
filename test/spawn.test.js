@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, before, describe, test } from 'node:test';
@@ -41,7 +41,9 @@ describe('spawning a command', () => {
 
   before(async () => {
     // A space in the path: npm.cmd really does live under "C:\Program Files".
-    fixtures = await mkdtemp(path.join(tmpdir(), 'repwrk spawn tests '));
+    // realpath because macOS hands out /var/... but a child process reports
+    // its cwd as the /private/var/... it really resolves to.
+    fixtures = await realpath(await mkdtemp(path.join(tmpdir(), 'repwrk spawn tests ')));
 
     await writeFile(
       path.join(fixtures, 'print-argv.js'),
