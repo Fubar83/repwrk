@@ -155,7 +155,8 @@ test('clone takes the whole v1 surface and nothing else', () => {
     owner: null,
     filter: null,
     branch: null,
-    yes: false,
+    // Confirming is the default, so the parsed value is true until asked otherwise.
+    confirm: true,
   });
 
   const full = parse([
@@ -166,12 +167,17 @@ test('clone takes the whole v1 surface and nothing else', () => {
     'customer-*',
     '--branch',
     'feature/foo',
-    '--yes',
+    '--no-confirm',
   ]);
   assert.equal(full.owner, 'my-org');
   assert.equal(full.filter, 'customer-*');
   assert.equal(full.branch, 'feature/foo');
-  assert.equal(full.yes, true);
+  assert.equal(full.confirm, false);
+});
+
+test('--no-confirm takes no value, and the old --yes is gone', () => {
+  refuses(['clone', '--no-confirm=true'], "option '--no-confirm' does not take a value");
+  refuses(['clone', '--yes'], "unknown option '--yes'");
 });
 
 test('--owner with no value is refused', () => {

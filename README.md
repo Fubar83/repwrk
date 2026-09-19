@@ -31,7 +31,7 @@ repwrk clone
   --owner <owner>
   --filter <glob>
   --branch <branch>
-  --yes
+  --no-confirm
 
 repwrk foreach
   --at <glob>
@@ -52,8 +52,26 @@ repwrk clone                                       # your own repositories
 repwrk clone --owner my-org                        # everything in an organisation
 repwrk clone --owner my-org --filter "customer-*"  # matching names only
 repwrk clone --owner my-org --filter "customer-*" --branch feature/foo
-repwrk clone --owner my-org --filter "customer-*" --yes
+repwrk clone --owner my-org --filter "customer-*" --no-confirm
 ```
+
+Nothing is cloned before you have seen what was selected. `clone` lists the repositories it matched, marks the ones already present, and asks:
+
+```console
+$ repwrk clone --owner my-org --filter "customer-*" --branch feature/foo
+
+About to clone 2 repositories into C:\work\org:
+
+  my-org/customer-api   (already here, on main — not feature/foo)
+  my-org/customer-jobs
+  my-org/customer-web
+
+This directory also holds 2 entries that are not repositories (docs, notes.md).
+
+Clone 2 repositories here? [y/N]
+```
+
+The listing goes to stderr; stdout carries only the names of repositories actually cloned, one per line, so a pipeline is unaffected.
 
 **`--owner <owner>`** is the user or organisation to clone from. Omitted, the scope is the account `gh` is authenticated as — `gh` has no default-organisation setting to fall back on, so working with an organisation means naming it.
 
@@ -69,7 +87,17 @@ GitHub is asked for at most 1000 repositories. If it returns that many there may
 
 **`--branch <branch>`** creates or checks out the branch in repositories **cloned by this invocation**. A repository that already exists locally is skipped and its git state is never modified — not its branch, not its working tree. The branch name is validated by `git check-ref-format` before any cloning, so a typo fails in a second rather than after thirty clones. A branch that already exists on the remote is checked out and tracked rather than recreated, so two machines don't start parallel histories under one name.
 
-**`--yes`** skips the confirmation when the current directory contains files or directories that are not repositories. Adding clones to a directory of clones is the ordinary case and never prompts. Cloning into a directory holding anything else asks first, because that may not be where you meant to put thirty repositories. `--yes` does not override any other safety check, and nothing ever overwrites an existing directory.
+An existing clone that is **not** on the requested branch is reported rather than moved, because it may have uncommitted work on it — but it is reported, since a workspace half on one branch and half on another is the thing you were trying to avoid:
+
+```console
+repwrk: 1 already here is not on feature/foo, and was left alone:
+  customer-web (on main)
+  to move them yourself: repwrk foreach git switch feature/foo
+```
+
+A directory sitting where a clone would go but which is not a git repository at all is reported the same way. Neither affects the exit code: nothing was asked of those repositories, so nothing failed.
+
+**`--no-confirm`** clones without asking. The confirmation is the default because `--filter` is a glob and what it matches is not always what you pictured. Without a terminal to ask at — a script, CI — the listing is still printed but nothing is asked, so automation is unaffected. The one exception is a directory holding files that are not repositories: unattended, that refuses rather than guesses, and `--no-confirm` is how you say you meant it. Nothing ever overwrites an existing directory.
 
 ## `repwrk foreach`
 

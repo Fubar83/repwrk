@@ -23,7 +23,7 @@ const CLONE_OPTIONS = {
   '--owner': { type: 'value', requires: 'a value' },
   '--filter': { type: 'value', requires: 'a value' },
   '--branch': { type: 'value', requires: 'a value' },
-  '--yes': { type: 'boolean' },
+  '--no-confirm': { type: 'boolean' },
   '--help': { type: 'boolean' },
 };
 
@@ -117,7 +117,9 @@ function parseClone(argv) {
     owner: options['--owner'] ?? null,
     filter: options['--filter'] ?? null,
     branch: options['--branch'] ?? null,
-    yes: Boolean(options['--yes']),
+    // Confirming is what clone does; the flag turns it off. Carried as the
+    // positive so every use site reads as the thing it decides.
+    confirm: !options['--no-confirm'],
   };
 }
 

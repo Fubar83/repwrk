@@ -1,7 +1,15 @@
 export { parse } from './cli/parse.js';
 export { EXIT, UsageError, RuntimeError, formatError } from './errors.js';
 export { foreach, CONCURRENCY } from './commands/foreach.js';
-export { clone, cloneRepos, checkWorkspace, foreignEntries } from './commands/clone.js';
+export {
+  clone,
+  cloneRepos,
+  checkWorkspace,
+  foreignEntries,
+  surveyRepos,
+  previewClone,
+  reportWrongBranch,
+} from './commands/clone.js';
 export { discoverRepos, targetsIn, resolveWorkUnits, isRepository } from './workspace.js';
 export { listRepos, selectRepos, normalize, LIST_LIMIT, REPO_FIELDS } from './github/repos.js';
 export { runGh, ghJson, GhError } from './github/gh.js';
