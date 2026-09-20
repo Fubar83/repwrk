@@ -7,7 +7,7 @@ import { branchRepos } from '../git/branch.js';
 import { currentBranch, isValidBranchName } from '../git/git.js';
 import { GhError, runGh } from '../github/gh.js';
 import { LIST_LIMIT, listRepos } from '../github/repos.js';
-import { isRepository } from '../workspace.js';
+import { holdsRepository, isRepository } from '../workspace.js';
 
 const plural = (count, one, many) => (count === 1 ? one : many);
 
@@ -17,6 +17,10 @@ const plural = (count, one, many) => (count === 1 ? one : many);
  * Adding clones to a folder of clones is the ordinary thing to do. A folder
  * holding anything else might be somewhere the user did not mean to fill with
  * repositories, so that is worth saying out loud before it happens.
+ *
+ * Dotfiles do not count. A workspace picks up .DS_Store, .gitignore and the
+ * like without anyone putting them there, and refusing to clone over a file
+ * the operating system wrote is not a warning anyone asked for.
  */
 export async function foreignEntries(directory) {
   let entries;
@@ -28,7 +32,7 @@ export async function foreignEntries(directory) {
   }
 
   return entries
-    .filter((entry) => !(entry.isDirectory() && isRepository(path.join(directory, entry.name))))
+    .filter((entry) => !entry.name.startsWith('.') && !holdsRepository(entry, directory))
     .map((entry) => entry.name)
     .sort((a, b) => a.localeCompare(b));
 }

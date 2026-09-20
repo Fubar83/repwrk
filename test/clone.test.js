@@ -90,6 +90,24 @@ test('an unattended run adds clones to a workspace of clones', async () => {
   assert.equal(await checkWorkspace(workspace, { cloneCount: 3 }), 'proceed');
 });
 
+test('dotfiles the system leaves behind are not foreign', async () => {
+  const workspace = await tempDir();
+  await makeRepoIn(workspace, 'api');
+  await writeFile(path.join(workspace, '.DS_Store'), '');
+  await writeFile(path.join(workspace, '.gitignore'), 'node_modules');
+
+  assert.deepEqual(await foreignEntries(workspace), []);
+});
+
+test('a workspace holding only dotfiles is still cloned into unattended', async () => {
+  const workspace = await tempDir();
+  await makeRepoIn(workspace, 'api');
+  await writeFile(path.join(workspace, '.DS_Store'), '');
+
+  // A file nobody chose to put there is no reason to refuse a scripted clone.
+  assert.equal(await checkWorkspace(workspace, { cloneCount: 3 }), 'proceed');
+});
+
 test('a directory holding anything else is never cloned into unattended', async () => {
   const workspace = await tempDir();
   await writeFile(path.join(workspace, 'thesis.docx'), 'important');

@@ -10,6 +10,19 @@ export function isRepository(directory) {
 }
 
 /**
+ * Whether a directory entry holds a repository.
+ *
+ * A symlink counts. Assembling a workspace by linking clones that live
+ * elsewhere is an ordinary thing to do, and readdir reports a symlinked
+ * directory as a symlink rather than a directory, so testing isDirectory()
+ * alone would make those clones invisible.
+ */
+export function holdsRepository(entry, parent) {
+  if (!entry.isDirectory() && !entry.isSymbolicLink()) return false;
+  return isRepository(path.join(parent, entry.name));
+}
+
+/**
  * The repositories in the workspace: the direct child directories of `cwd`
  * that are git repositories, in name order so that runs are reproducible.
  */
@@ -25,9 +38,8 @@ export async function discoverRepos(workspace) {
   }
 
   return entries
-    .filter((entry) => entry.isDirectory())
+    .filter((entry) => holdsRepository(entry, workspace))
     .map((entry) => ({ name: entry.name, path: path.join(workspace, entry.name) }))
-    .filter((repo) => isRepository(repo.path))
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
