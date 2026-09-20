@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { chmod, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -124,3 +124,42 @@ test('every repository still gets its turn when one command fails', async () => 
   assert.match(result.stderr, /2 of 2 failed/);
   assert.equal(result.code, 1);
 });
+
+/**
+ * Two repositories holding the same script, executable in one and not in the
+ * other — a command that starts in some working directories and not others.
+ */
+async function makeRunnerWorkspace() {
+  const workspace = await mkdtemp(path.join(tmpdir(), 'repwrk-foreach-'));
+  created.push(workspace);
+
+  for (const [name, mode] of [
+    ['able', 0o755],
+    ['unable', 0o644],
+  ]) {
+    const repo = path.join(workspace, name);
+    await mkdir(repo, { recursive: true });
+    await runGit(['init', '-q', '-b', 'main'], { cwd: repo });
+    const runner = path.join(repo, 'runner');
+    await writeFile(runner, ['#!/bin/sh', 'echo "ran in $(basename "$PWD")"', ''].join('\n'));
+    await chmod(runner, mode);
+  }
+
+  return workspace;
+}
+
+test(
+  'a unit that cannot start does not swallow the output of the ones that ran',
+  { skip: process.platform === 'win32' && 'POSIX file permissions' },
+  async () => {
+    const workspace = await makeRunnerWorkspace();
+
+    const result = await repwrk(['foreach', '--parallel', './runner'], workspace);
+
+    // The work was already done when the failure surfaced; throwing it away
+    // would mean running everything again to see any of it.
+    assert.match(result.stdout, /ran in able/);
+    assert.match(result.stderr, /could not start \.\/runner|command not found/);
+    assert.equal(result.code, 1);
+  },
+);

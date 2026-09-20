@@ -119,6 +119,17 @@ describe('spawning a command', () => {
     assert.equal(seen, '%PATH%');
   });
 
+  test(
+    'an argument holding a newline is refused rather than split',
+    { skip: !isWindows && 'cmd.exe is the only parser that cannot carry one' },
+    () => {
+      // cmd.exe ends the command at the newline and runs whatever follows as
+      // a command of its own, and no escape hides one, so there is nothing to
+      // do but say so.
+      assert.throws(() => spawn('argvtest', ['first', 'two\nlines'], { stdio: 'ignore' }), /newline/);
+    },
+  );
+
   test('a command that does not exist reports ENOENT', async () => {
     const child = spawn('repwrk-no-such-command-9z8y7x', [], { stdio: 'ignore' });
     const error = await new Promise((resolve) => child.on('error', resolve));

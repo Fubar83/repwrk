@@ -7,9 +7,13 @@ import { branchRepos } from '../git/branch.js';
 import { currentBranch, isValidBranchName } from '../git/git.js';
 import { GhError, runGh } from '../github/gh.js';
 import { LIST_LIMIT, listRepos } from '../github/repos.js';
-import { isRepository } from '../workspace.js';
+import { byName } from '../order.js';
+import { holdsRepository, isRepository } from '../workspace.js';
 
 const plural = (count, one, many) => (count === 1 ? one : many);
+
+/** A dotfile nobody chose to put there — .git excepted, which says a great deal. */
+const ignorable = (name) => name.startsWith('.') && name !== '.git';
 
 /**
  * Entries in the working directory that are not repositories.
@@ -17,6 +21,14 @@ const plural = (count, one, many) => (count === 1 ? one : many);
  * Adding clones to a folder of clones is the ordinary thing to do. A folder
  * holding anything else might be somewhere the user did not mean to fill with
  * repositories, so that is worth saying out loud before it happens.
+ *
+ * Dotfiles do not count. A workspace picks up .DS_Store, .gitignore and the
+ * like without anyone putting them there, and refusing to clone over a file
+ * the operating system wrote is not a warning anyone asked for.
+ *
+ * .git is the exception. A directory that is itself a repository is not a
+ * workspace, and filling one with clones of other repositories is exactly the
+ * mistake this check exists to catch.
  */
 export async function foreignEntries(directory) {
   let entries;
@@ -28,9 +40,9 @@ export async function foreignEntries(directory) {
   }
 
   return entries
-    .filter((entry) => !(entry.isDirectory() && isRepository(path.join(directory, entry.name))))
+    .filter((entry) => !ignorable(entry.name) && !holdsRepository(entry, directory))
     .map((entry) => entry.name)
-    .sort((a, b) => a.localeCompare(b));
+    .sort(byName);
 }
 
 /** Ask on the terminal. The question goes to stderr, and only an explicit yes is a yes. */
@@ -143,7 +155,10 @@ export async function checkWorkspace(directory, { cloneCount, confirm = true } =
 
   const foreign = await foreignEntries(directory);
 
-  if (!process.stdin.isTTY) {
+  // Asking needs somewhere to read the answer and somewhere to show the
+  // question. With stderr redirected the prompt lands in a file, and waiting
+  // for an answer nobody can see reads as a hang.
+  if (!process.stdin.isTTY || !process.stderr.isTTY) {
     // Nobody to ask. A directory full of unrelated files is still worth
     // refusing over; an ordinary workspace is not, or no script could clone.
     return foreign.length > 0 ? 'needs-confirmation' : 'proceed';

@@ -10,7 +10,13 @@ export {
   previewClone,
   reportWrongBranch,
 } from './commands/clone.js';
-export { discoverRepos, targetsIn, resolveWorkUnits, isRepository } from './workspace.js';
+export {
+  discoverRepos,
+  targetsIn,
+  resolveWorkUnits,
+  isRepository,
+  holdsRepository,
+} from './workspace.js';
 export { listRepos, selectRepos, normalize, LIST_LIMIT, REPO_FIELDS } from './github/repos.js';
 export { runGh, ghJson, GhError } from './github/gh.js';
 export { branchRepos, planBranch } from './git/branch.js';

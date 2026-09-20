@@ -113,11 +113,11 @@ async function runInParallel(units, command, args) {
     Array.from({ length: Math.min(CONCURRENCY, units.length) }, () => worker()),
   );
 
-  results.forEach((result, index) => {
-    if (!missingDirectory(result, units[index])) assertStartable(result, command);
-  });
-
   const failures = [];
+  // A unit that could not start stops the run, but only once every unit has
+  // reported: the work is already done, and throwing first would discard it.
+  let unstartable = null;
+
   results.forEach((result, index) => {
     const unit = units[index];
     // Every line of output is attributable: the header names the unit it
@@ -130,11 +130,17 @@ async function runInParallel(units, command, args) {
     }
     if (result.stdout) process.stdout.write(result.stdout);
     if (result.stderr) process.stderr.write(result.stderr);
+    if (result.spawnError) {
+      unstartable ??= result;
+      return;
+    }
     if (result.code !== 0) {
       failures.push({ unit, code: result.code });
       process.stderr.write(`    exited with ${result.code}\n`);
     }
   });
+
+  if (unstartable) assertStartable(unstartable, command);
 
   return failures;
 }

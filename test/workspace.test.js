@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { mkdir, mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { after, test } from 'node:test';
@@ -36,6 +36,23 @@ async function makeWorkspace(layout) {
 }
 
 const names = (units) => units.map((unit) => unit.name);
+/**
+ * Link a directory into a workspace, however this platform allows it.
+ * Returns false when the machine grants neither, which Windows does unless
+ * developer mode is on.
+ */
+async function linkDir(target, linkPath) {
+  for (const type of ['dir', 'junction']) {
+    try {
+      await symlink(target, linkPath, type);
+      return true;
+    } catch {
+      // Try the next kind of link.
+    }
+  }
+  return false;
+}
+
 
 const repoIn = (workspace, name) => ({ name, path: path.join(workspace, name) });
 
@@ -196,4 +213,30 @@ test('a tracked file deleted from the working tree is not a target', async () =>
   await rm(path.join(repo.path, 'services/a-lambda'), { recursive: true, force: true });
 
   assert.deepEqual(names(await targetsIn(repo, '**/*lambda')), ['api/services/b-lambda']);
+});
+
+test('a repository reached through a symlink is part of the workspace', async (t) => {
+  const workspace = await makeWorkspace({ api: {} });
+  const elsewhere = await makeWorkspace({ web: {} });
+
+  // A workspace assembled out of links to clones that live elsewhere is an
+  // ordinary thing to have; readdir calls those entries symlinks rather than
+  // directories, which is how they used to go missing.
+  if (!(await linkDir(path.join(elsewhere, 'web'), path.join(workspace, 'web')))) {
+    t.skip('this machine does not allow linking directories');
+    return;
+  }
+
+  assert.deepEqual(names(await discoverRepos(workspace)), ['api', 'web']);
+});
+
+test('a leading ./ and a trailing / name the same directory', async () => {
+  const workspace = await makeWorkspace({ api: { 'services/a-lambda/package.json': null } });
+  const repo = repoIn(workspace, 'api');
+  const expected = ['api/services/a-lambda'];
+
+  // How someone types a directory after tab completion, both of them.
+  assert.deepEqual(names(await targetsIn(repo, 'services/a-lambda')), expected);
+  assert.deepEqual(names(await targetsIn(repo, './services/a-lambda')), expected);
+  assert.deepEqual(names(await targetsIn(repo, 'services/a-lambda/')), expected);
 });
