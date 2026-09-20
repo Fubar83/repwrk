@@ -229,3 +229,14 @@ test('a repository reached through a symlink is part of the workspace', async (t
 
   assert.deepEqual(names(await discoverRepos(workspace)), ['api', 'web']);
 });
+
+test('a leading ./ and a trailing / name the same directory', async () => {
+  const workspace = await makeWorkspace({ api: { 'services/a-lambda/package.json': null } });
+  const repo = repoIn(workspace, 'api');
+  const expected = ['api/services/a-lambda'];
+
+  // How someone types a directory after tab completion, both of them.
+  assert.deepEqual(names(await targetsIn(repo, 'services/a-lambda')), expected);
+  assert.deepEqual(names(await targetsIn(repo, './services/a-lambda')), expected);
+  assert.deepEqual(names(await targetsIn(repo, 'services/a-lambda/')), expected);
+});

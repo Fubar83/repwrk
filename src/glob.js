@@ -44,14 +44,18 @@ export function isGlob(value) {
  * and `foo-lambda/package.json`, but `*lambda` alone matches neither.
  */
 export function pathGlobToRegExp(pattern) {
+  // git spells a path with no leading ./ and no trailing /, so a pattern
+  // carrying either would match nothing at all. Both are how people type a
+  // directory, so read them as the directory they mean.
+  const cleaned = pattern.replace(/^\.\//, '').replace(/\/+$/, '');
   let source = '';
   let index = 0;
 
-  while (index < pattern.length) {
-    const char = pattern[index];
+  while (index < cleaned.length) {
+    const char = cleaned[index];
 
-    if (char === '*' && pattern[index + 1] === '*') {
-      if (pattern[index + 2] === '/') {
+    if (char === '*' && cleaned[index + 1] === '*') {
+      if (cleaned[index + 2] === '/') {
         // `**/` may also stand for no segments at all.
         source += '(?:[^/]+/)*';
         index += 3;

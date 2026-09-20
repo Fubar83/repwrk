@@ -156,6 +156,7 @@ repwrk foreach --at "**/*lambda/package.json" pnpm audit
 - **Git ignore rules are respected.** Targets come from what git considers part of the repository, so anything in `.gitignore` is invisible. `node_modules` is skipped because the repository says so, not because this tool has opinions about it.
 - Targets outside the repository are rejected.
 - Only `*`, `?` and `**/` are glob syntax. Everything else is literal, so the `.` in `package.json` is a dot rather than "any character".
+- A leading `./` and a trailing `/` are accepted and ignored, so `--at "./services/"` and `--at services` mean the same thing.
 - A tracked file that has been deleted from the working tree is not a target — a target is somewhere a command can actually run. If a directory disappears after it was listed, that target alone fails and the rest of the run continues.
 
 ### `--parallel`
@@ -166,6 +167,8 @@ repwrk foreach --parallel --at "**/*lambda" pnpm test
 ```
 
 Concurrency is bounded — never an unbounded number of processes — and there is no knob for it. Each target's output is held until it finishes and then printed under a header naming it, so output always identifies where it came from instead of interleaving. Every execution is allowed to finish even after an earlier one fails, and the overall exit code is non-zero if any did.
+
+Commands run this way are given **no standard input**. Output is held rather than shown as it happens, so there would be nothing to answer a prompt against: anything that expects to ask — a password, an editor, a confirmation — belongs in a sequential run.
 
 `--parallel` requires a command, so both of these are errors:
 
