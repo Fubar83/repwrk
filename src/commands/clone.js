@@ -7,6 +7,7 @@ import { branchRepos } from '../git/branch.js';
 import { currentBranch, isValidBranchName } from '../git/git.js';
 import { GhError, runGh } from '../github/gh.js';
 import { LIST_LIMIT, listRepos } from '../github/repos.js';
+import { byName } from '../order.js';
 import { holdsRepository, isRepository } from '../workspace.js';
 
 const plural = (count, one, many) => (count === 1 ? one : many);
@@ -41,7 +42,7 @@ export async function foreignEntries(directory) {
   return entries
     .filter((entry) => !ignorable(entry.name) && !holdsRepository(entry, directory))
     .map((entry) => entry.name)
-    .sort((a, b) => a.localeCompare(b));
+    .sort(byName);
 }
 
 /** Ask on the terminal. The question goes to stderr, and only an explicit yes is a yes. */

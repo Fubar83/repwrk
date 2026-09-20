@@ -1,5 +1,6 @@
 import { GhError, ghJson, runGh } from './gh.js';
 import { matches, matchesAny } from '../glob.js';
+import { byName } from '../order.js';
 
 /**
  * How many repositories to ask `gh` for. Reaching it means GitHub had more to
@@ -158,8 +159,8 @@ export async function listRepos({
   const raw = await ghJson(args);
   if (owner && raw.length === 0) await assertOwnerExists(owner);
 
-  const repos = selectRepos(raw.map(normalize), { patterns, exclude, language, uses }).sort((a, b) =>
-    a.nameWithOwner.localeCompare(b.nameWithOwner),
+  const repos = selectRepos(raw.map(normalize), { patterns, exclude, language, uses }).sort(
+    (a, b) => byName(a.nameWithOwner, b.nameWithOwner),
   );
 
   return { repos, truncated: raw.length === limit };

@@ -4,6 +4,7 @@ import path from 'node:path';
 import { RuntimeError } from './errors.js';
 import { runGit } from './git/git.js';
 import { matchesPath } from './glob.js';
+import { byName } from './order.js';
 
 export function isRepository(directory) {
   return existsSync(path.join(directory, '.git'));
@@ -40,7 +41,7 @@ export async function discoverRepos(workspace) {
   return entries
     .filter((entry) => holdsRepository(entry, workspace))
     .map((entry) => ({ name: entry.name, path: path.join(workspace, entry.name) }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+    .sort((a, b) => byName(a.name, b.name));
 }
 
 async function listFiles(repo, selectors) {
@@ -109,7 +110,7 @@ export async function targetsIn(repo, pattern) {
     }
   }
 
-  return [...found].sort((a, b) => a.localeCompare(b)).map((relative) => ({
+  return [...found].sort(byName).map((relative) => ({
     repo,
     // Listed and reported exactly as the spec shows: repo/path/inside.
     name: relative === '' ? repo.name : `${repo.name}/${relative}`,
