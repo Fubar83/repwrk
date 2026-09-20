@@ -3,12 +3,19 @@
   "version": "0.1.0",
   "description": "Work across many repositories at once: clone a set into a folder, then run commands across all of them",
   "keywords": [
+    "git",
     "github",
     "gh",
-    "git",
     "cli",
-    "monorepo",
-    "multi-repo"
+    "multi-repo",
+    "polyrepo",
+    "repositories",
+    "clone",
+    "foreach",
+    "bulk",
+    "batch",
+    "parallel",
+    "workspace"
   ],
   "license": "MIT",
   "author": "Henrik Johansson (https://github.com/Fubar83)",
