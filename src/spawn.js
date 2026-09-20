@@ -1,6 +1,7 @@
 import { spawn as childSpawn } from 'node:child_process';
 import { statSync } from 'node:fs';
 import path from 'node:path';
+import { RuntimeError } from './errors.js';
 
 /**
  * Spawning a command on Windows, without a shell.
@@ -120,6 +121,26 @@ export function escapeCommandForCmd(value) {
   return String(value).replace(/[()[\]{}%!^"`<>&|;, *?]/g, '^$&');
 }
 
+/**
+ * cmd.exe reads a command line one line at a time, so a newline inside an
+ * argument ends the command rather than travelling inside it. There is no
+ * escape that hides one — `^` continues a line, it does not quote it — so an
+ * argument carrying a newline cannot reach a batch file at all.
+ *
+ * Refusing is the only honest answer: the alternative is cmd.exe running
+ * whatever followed the newline as a command of its own.
+ */
+function assertNoNewline(args, file) {
+  const offender = args.findIndex((value) => /[\r\n]/.test(String(value)));
+  if (offender === -1) return;
+
+  throw new RuntimeError(
+    `argument ${offender + 1} contains a newline, which cmd.exe cannot carry ` +
+      `into ${path.basename(file)}`,
+    { component: 'spawn' },
+  );
+}
+
 /** The full `cmd.exe /d /s /c` command line for running a batch file. */
 export function buildBatchCommandLine(file, args) {
   return [escapeCommandForCmd(file), ...args.map(escapeForCmd)].join(' ');
@@ -144,6 +165,8 @@ export function spawn(command, args = [], options = {}) {
   if (!BATCH_EXTENSIONS.has(path.extname(resolved).toLowerCase())) {
     return childSpawn(resolved, args, options);
   }
+
+  assertNoNewline(args, resolved);
 
   return childSpawn(
     'cmd.exe',

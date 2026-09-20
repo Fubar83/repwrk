@@ -37,7 +37,9 @@ Usage:
 Options:
   --at <glob>         Execute at every path matching this glob inside each
                       repository, instead of at the repository root
-  --parallel          Execute concurrently; requires a command
+  --parallel          Execute concurrently; requires a command. Output is
+                      held until each finishes, and commands are given no
+                      stdin, so nothing that prompts belongs here
   --                  Optional end-of-options marker
   --help              Show this help
 
