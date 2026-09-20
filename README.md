@@ -21,7 +21,7 @@ $ repwrk foreach --parallel dotnet test
 ## Install
 
 ```bash
-npm install -g repwrk
+npm install -g @fub4r/repwrk
 ```
 
 ## The whole parameter surface
