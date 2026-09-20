@@ -254,3 +254,31 @@ test('a plain directory sitting where a clone would go is reported', async () =>
   const written = await captureStderr(() => reportWrongBranch(survey, 'main'));
   assert.match(written, /api \(not a git repository\)/);
 });
+
+test('a directory that is itself a repository is never cloned into unattended', async () => {
+  const workspace = await tempDir();
+  await runGit(['init', '-q', '-b', 'main'], { cwd: workspace });
+
+  // .git is the one dotfile that means something: this is a repository, not
+  // a folder to fill with repositories.
+  assert.deepEqual(await foreignEntries(workspace), ['.git']);
+  assert.equal(await checkWorkspace(workspace, { cloneCount: 3 }), 'needs-confirmation');
+});
+
+test('a prompt nobody could see is never waited for', async () => {
+  const workspace = await tempDir();
+  await makeRepoIn(workspace, 'api');
+
+  // A terminal to type at is not enough: with stderr redirected the question
+  // goes to a file, so waiting for an answer would read as a hang.
+  const stdin = process.stdin.isTTY;
+  const stderr = process.stderr.isTTY;
+  try {
+    process.stdin.isTTY = true;
+    process.stderr.isTTY = false;
+    assert.equal(await checkWorkspace(workspace, { cloneCount: 3 }), 'proceed');
+  } finally {
+    process.stdin.isTTY = stdin;
+    process.stderr.isTTY = stderr;
+  }
+});
