@@ -1,6 +1,6 @@
 {
   "name": "@fub4r/repwrk",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "description": "Work across many repositories at once: clone a set into a folder, then run commands across all of them",
   "keywords": [
     "git",
@@ -33,10 +33,6 @@
   },
   "bin": {
     "repwrk": "bin/repwrk.js"
-  },
-  "main": "src/index.js",
-  "exports": {
-    ".": "./src/index.js"
   },
   "files": [
     "bin",
