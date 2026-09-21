@@ -5,7 +5,7 @@ Work across many repositories at once. Clone a set of them into a folder, then r
 A workspace is just a directory holding clones. There is no config file, no state file, and no workspace registry — `repwrk` reads the directory each time it runs.
 
 ```console
-$ repwrk clone --owner my-org --filter "customer-*" --branch feature/customer-permissions
+$ repwrk clone --owner my-org --team payments --filter "customer-*" --branch feature/customer-permissions
 $ repwrk foreach
 customer-api
 customer-web
@@ -28,18 +28,32 @@ npm install -g @fub4r/repwrk
 
 ```
 repwrk clone
-  --owner <owner>
-  --filter <glob>
-  --branch <branch>
-  --no-confirm
+  -o, --owner <owner>
+  -t, --team <team>
+  -f, --filter <glob>      (repeatable)
+  -l, --language <lang>    (repeatable)
+  -b, --branch <branch>
+      --no-confirm
+  -h, --help
 
 repwrk foreach
-  --at <glob>
-  --parallel
-  -- [optional]
+  -a, --at <glob>
+  -p, --parallel
+      -- [optional]
+  -h, --help
   <command>
   [arguments...]
 ```
+
+Every option has a one-letter form, so the common case stays short:
+
+```bash
+repwrk clone -o my-org -t payments -f "customer-*" -l C# -b feature/foo
+```
+
+`--no-confirm` is the one exception, deliberately. `-y` is what anyone would reach for, and "yes" is the spelling this flag was renamed away from: it does not say *what* is being agreed to once the prompt carries more than one question. Turning off a confirmation is worth the extra keystrokes.
+
+In `foreach`, a one-letter option **after** the command belongs to the command, exactly as a long one does — `repwrk foreach ls -a` runs `ls -a`.
 
 That is deliberately all of it. There are no parameters for workspace paths, repository paths, concurrency counts, project types, package managers, git state manipulation, config files, agents or task definitions.
 
@@ -52,7 +66,7 @@ repwrk clone                                       # your own repositories
 repwrk clone --owner my-org                        # everything in an organisation
 repwrk clone --owner my-org --filter "customer-*"  # matching names only
 repwrk clone --owner my-org --filter "customer-*" --branch feature/foo
-repwrk clone --owner my-org --filter "customer-*" --no-confirm
+repwrk clone --owner my-org --filter "customer-*" --language C# --no-confirm
 ```
 
 Nothing is cloned before you have seen what was selected. `clone` lists the repositories it matched, marks the ones already present, and asks:
@@ -81,9 +95,44 @@ repwrk clone --owner my-org --filter "customer-*"
 
 Archived repositories are never in scope.
 
-GitHub is asked for at most 1000 repositories. If it returns that many there may be more behind the limit, and `repwrk` says so on stderr rather than letting a filtered result look complete.
+The listing is **complete**: every repository in scope is fetched, not the first thousand. It is read a hundred at a time, several pages at once, with a progress meter on stderr:
 
-**`--filter <glob>`** applies to repository *names*, anchored and case-insensitive: `customer-*` matches `customer-api` but not `old-customer-api`. It does not affect local directory matching. Omitted, every repository in scope is selected.
+```console
+repwrk: listing my-org ████████████░░░░░░░░░░░░ 4100/8306, 14s left
+repwrk: listed 8306 repositories in 29s, 23 matched
+```
+
+Without a terminal to redraw on, the meter becomes an occasional plain line instead, so a CI log shows movement without thousands of frames. Everything it prints goes to stderr, so piping stdout is unaffected.
+
+**`--team <team>`** narrows to the repositories one team can reach, named by its **URL slug** (the last part of `github.com/orgs/my-org/teams/payments`), which is not always the display name. It needs `--owner`, since a team belongs to an organisation, and a token carrying the `read:org` scope — `gh auth refresh -s read:org`.
+
+```bash
+repwrk clone --owner my-org --team payments
+```
+
+In a large organisation this is also by far the fastest way to select, because it is the only narrowing GitHub applies on its own side: only the team's repositories are ever fetched. Every other filter below is applied after the listing arrives.
+
+**`--filter <glob>`** applies to repository *names*, anchored and case-insensitive: `customer-*` matches `customer-api` but not `old-customer-api`. A glob containing a `/` is matched against `owner/name` instead. It does not affect local directory matching. Omitted, every repository in scope is selected.
+
+It is **repeatable**, and repeats are OR-ed — each one widens the selection:
+
+```bash
+repwrk clone --owner my-org --filter "companyA*" --filter "*packages.internal*"
+```
+
+**`--language <lang>`** keeps repositories whose **primary** language matches, as a glob, case-insensitively — so `c#` and `C#` are the same, and `Type*` matches TypeScript. It is repeatable and OR-ed like `--filter`, and the two combine as AND: both must hold.
+
+```bash
+repwrk clone --owner my-org --filter "customer-*" --language C# --language "Type*"
+```
+
+A repository GitHub reports no language for is never matched by a language filter.
+
+### Why filtering happens here and not at GitHub
+
+GitHub's repository listing has no name or language filter. Its only name-searching surface is the **search index**, and that index is built for relevance, not completeness — it quietly omits matches. Measured against a fully enumerated organisation, searching for `node` missed a repository called `nodejs-es`, and `build` missed `build-container-sync`; substring patterns like `*packages.internal*` fail by design, because search matches whole tokens and prefixes rather than substrings.
+
+A filter that silently drops repositories is the one failure nothing downstream can recover from, so `repwrk` enumerates the scope and filters locally. `--team` is the exception, and is genuinely applied by GitHub.
 
 **`--branch <branch>`** creates or checks out the branch in repositories **cloned by this invocation**. A repository that already exists locally is skipped and its git state is never modified — not its branch, not its working tree. The branch name is validated by `git check-ref-format` before any cloning, so a typo fails in a second rather than after thirty clones. A branch that already exists on the remote is checked out and tracked rather than recreated, so two machines don't start parallel histories under one name.
 

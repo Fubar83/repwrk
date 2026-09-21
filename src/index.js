@@ -8,6 +8,7 @@ export {
   foreignEntries,
   surveyRepos,
   previewClone,
+  selectForClone,
   reportWrongBranch,
 } from './commands/clone.js';
 export {
@@ -17,7 +18,23 @@ export {
   isRepository,
   holdsRepository,
 } from './workspace.js';
-export { listRepos, selectRepos, normalize, LIST_LIMIT, REPO_FIELDS } from './github/repos.js';
+export {
+  listRepos,
+  selectRepos,
+  matchesFacets,
+  normalize,
+  REPO_FIELDS,
+} from './github/repos.js';
+export {
+  fetchRepos,
+  planListing,
+  attachLanguages,
+  toNode,
+  pool,
+  PAGE_SIZE,
+  CONCURRENCY as LIST_CONCURRENCY,
+} from './github/rest.js';
+export { Progress, renderBar, formatDuration, estimateRemaining } from './progress.js';
 export { runGh, ghJson, GhError } from './github/gh.js';
 export { branchRepos, planBranch } from './git/branch.js';
 export { runGit, currentBranch, isDirty, refExists, isValidBranchName } from './git/git.js';

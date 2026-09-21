@@ -148,12 +148,16 @@ test('unknown options are errors, never passed to the command', () => {
 
 // clone
 
-test('clone takes the whole v1 surface and nothing else', () => {
+test('clone takes the whole surface and nothing else', () => {
   assert.deepEqual(parse(['clone']), {
     name: 'clone',
     help: false,
     owner: null,
-    filter: null,
+    team: null,
+    // Repeatable options are always lists, so no caller has to tell one value
+    // apart from several, or from none.
+    filter: [],
+    language: [],
     branch: null,
     // Confirming is the default, so the parsed value is true until asked otherwise.
     confirm: true,
@@ -163,16 +167,49 @@ test('clone takes the whole v1 surface and nothing else', () => {
     'clone',
     '--owner',
     'my-org',
+    '--team',
+    'payments',
     '--filter',
     'customer-*',
+    '--language',
+    'C#',
     '--branch',
     'feature/foo',
     '--no-confirm',
   ]);
   assert.equal(full.owner, 'my-org');
-  assert.equal(full.filter, 'customer-*');
+  assert.equal(full.team, 'payments');
+  assert.deepEqual(full.filter, ['customer-*']);
+  assert.deepEqual(full.language, ['C#']);
   assert.equal(full.branch, 'feature/foo');
   assert.equal(full.confirm, false);
+});
+
+test('--filter and --language repeat, and keep the order they were given', () => {
+  const command = parse([
+    'clone',
+    '--filter',
+    'companyA*',
+    '--filter',
+    '*packages.internal*',
+    '--language',
+    'C#',
+    '--language',
+    'Type*',
+  ]);
+  assert.deepEqual(command.filter, ['companyA*', '*packages.internal*']);
+  assert.deepEqual(command.language, ['C#', 'Type*']);
+});
+
+test('a repeated --owner keeps the last one, since it cannot mean two owners', () => {
+  assert.equal(parse(['clone', '--owner', 'first', '--owner', 'second']).owner, 'second');
+});
+
+test('--team needs an organisation to look the team up in', () => {
+  refuses(['clone', '--team', 'payments'], '--team requires --owner');
+  refuses(['clone', '--team'], '--team requires a value');
+  // --help outranks it: asking how the flag works must not require using it right.
+  assert.equal(parse(['clone', '--team', 'payments', '--help']).help, true);
 });
 
 test('--no-confirm takes no value, and the old --yes is gone', () => {
@@ -194,7 +231,7 @@ test('clone takes no positional arguments', () => {
 });
 
 test('inline option values are accepted', () => {
-  assert.equal(parse(['clone', '--filter=customer-*']).filter, 'customer-*');
+  assert.deepEqual(parse(['clone', '--filter=customer-*']).filter, ['customer-*']);
   assert.equal(parse(['foreach', '--at=**/*lambda']).at, '**/*lambda');
 });
 
@@ -218,4 +255,85 @@ test('an unknown subcommand is refused', () => {
 test('bare repwrk asks for help rather than erroring', () => {
   assert.equal(parse([]).name, 'help');
   assert.equal(parse(['--help']).name, 'help');
+});
+
+// Short forms
+
+test('every long option has its one-letter form, and they mean the same thing', () => {
+  const long = parse([
+    'clone',
+    '--owner', 'my-org',
+    '--team', 'payments',
+    '--filter', 'customer-*',
+    '--language', 'C#',
+    '--branch', 'feature/foo',
+  ]);
+  const short = parse([
+    'clone',
+    '-o', 'my-org',
+    '-t', 'payments',
+    '-f', 'customer-*',
+    '-l', 'C#',
+    '-b', 'feature/foo',
+  ]);
+
+  assert.deepEqual(short, long);
+});
+
+test('foreach takes its short forms too', () => {
+  assert.deepEqual(parse(['foreach', '-a', '**/*lambda', '-p', 'pnpm', 'test']), {
+    name: 'foreach',
+    help: false,
+    at: '**/*lambda',
+    parallel: true,
+    command: 'pnpm',
+    args: ['test'],
+  });
+});
+
+test('-h asks for help wherever --help does', () => {
+  assert.equal(parse(['clone', '-h']).help, true);
+  assert.equal(parse(['foreach', '-h']).help, true);
+});
+
+test('a short form repeats and mixes with its long form', () => {
+  const command = parse(['clone', '-f', 'companyA*', '--filter', '*packages.internal*', '-f', 'x*']);
+  assert.deepEqual(command.filter, ['companyA*', '*packages.internal*', 'x*']);
+});
+
+// The flag that turns off a confirmation has no one-letter form: -y is what
+// anyone would reach for, and "yes" is the spelling this flag was renamed away
+// from, because it does not say what is being agreed to.
+test('--no-confirm has no one-letter form', () => {
+  refuses(['clone', '-y'], "unknown option '-y'");
+  refuses(['clone', '-n'], "unknown option '-n'");
+});
+
+test('a short form belongs to the command that defines it', () => {
+  // -p is foreach's; clone has no such thing and must not invent one.
+  refuses(['clone', '-p'], "unknown option '-p'");
+  refuses(['foreach', '-o', 'my-org'], "unknown option '-o'");
+});
+
+// A complaint should name the spelling in front of the reader, not its synonym.
+test('an error names the form that was actually typed', () => {
+  refuses(['clone', '-f'], '-f requires a value');
+  refuses(['clone', '--filter'], '--filter requires a value');
+  refuses(['foreach', '-a'], '-a requires a glob');
+  refuses(['foreach', '-p=yes'], "option '-p' does not take a value");
+});
+
+test('an empty value is refused however it is spelled', () => {
+  refuses(['clone', '-f', ''], '-f requires a value');
+  refuses(['clone', '-o', ''], '-o requires a value');
+});
+
+// foreach hands everything after the command to the command, so a one-letter
+// option there is the command's own and repwrk must not read it.
+test('a short form after the command belongs to the command', () => {
+  const command = parse(['foreach', 'ls', '-a', '-p']);
+  assert.equal(command.command, 'ls');
+  assert.deepEqual(command.args, ['-a', '-p']);
+  assert.equal(command.at, null);
+  assert.equal(command.parallel, false);
 });

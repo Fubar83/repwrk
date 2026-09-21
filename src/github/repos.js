@@ -1,31 +1,7 @@
-import { GhError, ghJson, runGh } from './gh.js';
+import { GhError } from './gh.js';
+import { attachLanguages, fetchRepos } from './rest.js';
 import { matches, matchesAny } from '../glob.js';
 import { byName } from '../order.js';
-
-/**
- * How many repositories to ask `gh` for. Reaching it means GitHub had more to
- * give, which `listRepos` reports as `truncated`.
- */
-export const LIST_LIMIT = 1000;
-
-/** Fields requested from `gh repo list --json`. */
-const GH_FIELDS = [
-  'name',
-  'nameWithOwner',
-  'owner',
-  'url',
-  'sshUrl',
-  'description',
-  'primaryLanguage',
-  'languages',
-  'defaultBranchRef',
-  'isArchived',
-  'isFork',
-  'isPrivate',
-  'visibility',
-  'updatedAt',
-  'pushedAt',
-];
 
 /** Keys of a normalised repo record — also the valid values for `--field`. */
 export const REPO_FIELDS = [
@@ -47,8 +23,8 @@ export const REPO_FIELDS = [
 ];
 
 /**
- * Flatten gh's nested objects into a flat record, so every field is printable
- * with `--field` and downstream tools get a stable shape.
+ * Flatten GitHub's nested objects into a flat record, so every field is
+ * printable and downstream tools get a stable shape.
  */
 export function normalize(repo) {
   return {
@@ -60,7 +36,7 @@ export function normalize(repo) {
     defaultBranch: repo.defaultBranchRef?.name ?? null,
     description: repo.description ?? '',
     language: repo.primaryLanguage?.name ?? null,
-    // gh returns these unordered; largest first is the useful reading order.
+    // GitHub returns these unordered; largest first is the useful reading order.
     languages: (repo.languages ?? [])
       .slice()
       .sort((a, b) => (b.size ?? 0) - (a.size ?? 0))
@@ -86,9 +62,14 @@ function matchesPattern(repo, pattern) {
 /**
  * No include patterns means "everything"; any exclude match wins over an include.
  *
- * `language` matches a repository's primary language, `uses` matches any language
- * GitHub detected in it. Both accept globs and are case-insensitive, so `C#` and
- * `c#` are the same and `Type*` matches TypeScript. Given together, both must hold.
+ * Repeating a pattern widens the selection: `--filter companyA* --filter
+ * *packages.internal*` keeps a repository matching either. Narrowing is what
+ * the other axes are for, and they combine as AND — a name filter and a
+ * language filter given together must both hold.
+ *
+ * `language` matches a repository's primary language, `uses` matches any
+ * language GitHub detected in it. Both accept globs and are case-insensitive,
+ * so `C#` and `c#` are the same and `Type*` matches TypeScript.
  */
 export function selectRepos(repos, { patterns = [], exclude = [], language = [], uses = [] } = {}) {
   return repos.filter((repo) => {
@@ -103,38 +84,44 @@ export function selectRepos(repos, { patterns = [], exclude = [], language = [],
 }
 
 /**
- * `gh repo list` reports an unknown owner as an error — unless --archived or
- * --no-archived is passed, where it quietly returns an empty list and exit 0.
- * We always pass one of those, so a mistyped owner would silently look like
- * "no repositories" and feed an empty list into whatever comes next in the
- * pipeline. Confirm the owner exists before reporting an empty result.
+ * Facets GitHub either cannot filter on, or cannot be asked to filter on for
+ * every scope: a team's repository connection accepts none of these arguments,
+ * and no connection has one for archived state at all. Applying them here as
+ * well makes the result identical whichever scope produced it.
  */
-async function assertOwnerExists(owner) {
-  try {
-    await runGh(['api', `users/${owner}`, '--silent']);
-  } catch (error) {
-    if (error instanceof GhError && /404|not found/i.test(error.message)) {
-      throw new GhError(
-        `the owner "${owner}" was not recognised as either a GitHub user or an organisation`,
-        1,
-      );
-    }
-    throw error;
-  }
+export function matchesFacets(repo, { archived = 'exclude', kind = 'all', visibility } = {}) {
+  if (archived === 'exclude' && repo.isArchived) return false;
+  if (archived === 'only' && !repo.isArchived) return false;
+  if (kind === 'source' && repo.isFork) return false;
+  if (kind === 'fork' && !repo.isFork) return false;
+  if (visibility && repo.visibility !== visibility) return false;
+  return true;
 }
 
 /**
- * List repositories for `owner` (the authenticated user when omitted),
- * keeping those matching `patterns` and dropping those matching `exclude`.
+ * List repositories for `owner` (the authenticated account when omitted), or
+ * only those one `team` inside that organisation can reach.
  *
  * `archived` is one of 'exclude' (default), 'include' or 'only'.
  * `kind` is one of 'all' (default), 'source' (no forks) or 'fork'.
  *
- * Returns `{ repos, truncated }`; `truncated` is true when GitHub returned
- * exactly `limit` repositories, meaning there may be more behind the limit.
+ * `language` reads the primary language, which every listing carries anyway
+ * and which is therefore free. `uses` reads the full language breakdown, which
+ * is a request per repository, so it is fetched last — for the repositories
+ * that survived every other filter rather than for the whole listing.
+ *
+ * `onProgress` is called after each page with `{ fetched, total }` — what lets
+ * a caller draw a meter over a listing that takes a while.
+ *
+ * Returns `{ repos, total, truncated }`. Without an explicit `limit` the whole
+ * listing is fetched and `truncated` is false: an incomplete answer that looks
+ * complete is the one failure no filter downstream can recover from, and
+ * GitHub offers no server-side name filter that could make a shortcut safe —
+ * its only one is the search index, which demonstrably omits matches.
  */
 export async function listRepos({
   owner,
+  team,
   patterns = [],
   exclude = [],
   language = [],
@@ -142,26 +129,38 @@ export async function listRepos({
   archived = 'exclude',
   kind = 'all',
   visibility,
-  limit = LIST_LIMIT,
+  limit,
+  onProgress,
+  request,
 } = {}) {
-  const args = ['repo', 'list'];
-  if (owner) args.push(owner);
-  args.push('--limit', String(limit), '--json', GH_FIELDS.join(','));
+  if (team && !owner) {
+    throw new GhError('a team belongs to an organisation, so --team needs --owner as well');
+  }
 
-  if (archived === 'only') args.push('--archived');
-  else if (archived === 'exclude') args.push('--no-archived');
+  const passthrough = request ? { request } : {};
 
-  if (kind === 'source') args.push('--source');
-  else if (kind === 'fork') args.push('--fork');
+  const { nodes, total, truncated } = await fetchRepos({
+    owner,
+    team,
+    kind,
+    visibility,
+    limit: limit ?? Infinity,
+    onPage: onProgress,
+    ...passthrough,
+  });
 
-  if (visibility) args.push('--visibility', visibility);
-
-  const raw = await ghJson(args);
-  if (owner && raw.length === 0) await assertOwnerExists(owner);
-
-  const repos = selectRepos(raw.map(normalize), { patterns, exclude, language, uses }).sort(
-    (a, b) => byName(a.nameWithOwner, b.nameWithOwner),
+  // Everything cheap first, so the one expensive lookup is asked about as few
+  // repositories as possible.
+  const cheap = selectRepos(
+    nodes.map(normalize).filter((repo) => matchesFacets(repo, { archived, kind, visibility })),
+    { patterns, exclude, language },
   );
 
-  return { repos, truncated: raw.length === limit };
+  const withLanguages = uses.length > 0 ? await attachLanguages(cheap, passthrough) : cheap;
+
+  const repos = selectRepos(withLanguages, { uses }).sort((a, b) =>
+    byName(a.nameWithOwner, b.nameWithOwner),
+  );
+
+  return { repos, total, truncated };
 }
