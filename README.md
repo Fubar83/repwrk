@@ -28,20 +28,32 @@ npm install -g @fub4r/repwrk
 
 ```
 repwrk clone
-  --owner <owner>
-  --team <team>
-  --filter <glob>      (repeatable)
-  --language <lang>    (repeatable)
-  --branch <branch>
-  --no-confirm
+  -o, --owner <owner>
+  -t, --team <team>
+  -f, --filter <glob>      (repeatable)
+  -l, --language <lang>    (repeatable)
+  -b, --branch <branch>
+      --no-confirm
+  -h, --help
 
 repwrk foreach
-  --at <glob>
-  --parallel
-  -- [optional]
+  -a, --at <glob>
+  -p, --parallel
+      -- [optional]
+  -h, --help
   <command>
   [arguments...]
 ```
+
+Every option has a one-letter form, so the common case stays short:
+
+```bash
+repwrk clone -o my-org -t payments -f "customer-*" -l C# -b feature/foo
+```
+
+`--no-confirm` is the one exception, deliberately. `-y` is what anyone would reach for, and "yes" is the spelling this flag was renamed away from: it does not say *what* is being agreed to once the prompt carries more than one question. Turning off a confirmation is worth the extra keystrokes.
+
+In `foreach`, a one-letter option **after** the command belongs to the command, exactly as a long one does — `repwrk foreach ls -a` runs `ls -a`.
 
 That is deliberately all of it. There are no parameters for workspace paths, repository paths, concurrency counts, project types, package managers, git state manipulation, config files, agents or task definitions.
 

@@ -14,21 +14,40 @@ import { CLONE_HINT, FOREACH_HINT } from './usage.js';
  */
 
 const FOREACH_OPTIONS = {
-  '--at': { type: 'value', requires: 'a glob' },
-  '--parallel': { type: 'boolean' },
-  '--help': { type: 'boolean' },
+  '--at': { type: 'value', requires: 'a glob', short: '-a' },
+  '--parallel': { type: 'boolean', short: '-p' },
+  '--help': { type: 'boolean', short: '-h' },
 };
 
 const CLONE_OPTIONS = {
-  '--owner': { type: 'value', requires: 'a value' },
-  '--team': { type: 'value', requires: 'a value' },
+  '--owner': { type: 'value', requires: 'a value', short: '-o' },
+  '--team': { type: 'value', requires: 'a value', short: '-t' },
   // Repeatable, and OR-ed: each one widens the selection.
-  '--filter': { type: 'value', requires: 'a value', repeatable: true },
-  '--language': { type: 'value', requires: 'a value', repeatable: true },
-  '--branch': { type: 'value', requires: 'a value' },
+  '--filter': { type: 'value', requires: 'a value', repeatable: true, short: '-f' },
+  '--language': { type: 'value', requires: 'a value', repeatable: true, short: '-l' },
+  '--branch': { type: 'value', requires: 'a value', short: '-b' },
+  // Deliberately without a short spelling. `-y` is the one anybody would
+  // reach for, and "yes" is exactly the word this flag was renamed away from:
+  // it does not say what is being agreed to once the prompt asks more than
+  // one thing. Turning off a confirmation is worth the extra keystrokes.
   '--no-confirm': { type: 'boolean' },
-  '--help': { type: 'boolean' },
+  '--help': { type: 'boolean', short: '-h' },
 };
+
+/**
+ * Short spellings, as a map from the short form to the long one it stands for.
+ *
+ * Only the long name is ever stored, so nothing downstream has to know that a
+ * short form exists — and an option can gain or lose one without touching
+ * anything but the table above.
+ */
+function shortFormsOf(spec) {
+  const shorts = {};
+  for (const [name, definition] of Object.entries(spec)) {
+    if (definition.short) shorts[definition.short] = name;
+  }
+  return shorts;
+}
 
 const isOption = (token) => token.startsWith('-') && token !== '-';
 
@@ -46,6 +65,7 @@ const inlineValue = (token) =>
  */
 function parseOptions(argv, spec, hint) {
   const options = {};
+  const shorts = shortFormsOf(spec);
   let index = 0;
 
   while (index < argv.length) {
@@ -57,13 +77,16 @@ function parseOptions(argv, spec, hint) {
     // The first non-option argument ends repwrk's options.
     if (!isOption(token)) return { options, rest: argv.slice(index) };
 
-    const key = optionKey(token);
+    // What was typed is what any complaint names, so the error points at the
+    // command line the reader is looking at rather than its longer synonym.
+    const typed = optionKey(token);
+    const key = shorts[typed] ?? typed;
     const definition = spec[key];
-    if (!definition) throw new UsageError(`unknown option '${key}'`, { hint });
+    if (!definition) throw new UsageError(`unknown option '${typed}'`, { hint });
 
     if (definition.type === 'boolean') {
       if (inlineValue(token) !== null) {
-        throw new UsageError(`option '${key}' does not take a value`, { hint });
+        throw new UsageError(`option '${typed}' does not take a value`, { hint });
       }
       options[key] = true;
       index += 1;
@@ -77,7 +100,7 @@ function parseOptions(argv, spec, hint) {
     // — usually an unset shell variable — must not read as "option not given":
     // `--filter ""` would otherwise widen the selection to every repository.
     if (value === undefined || value === '' || (attached === null && isOption(value))) {
-      throw new UsageError(`${key} requires ${definition.requires}`, { hint });
+      throw new UsageError(`${typed} requires ${definition.requires}`, { hint });
     }
 
     // A repeatable option collects; a plain one keeps the last value given,
