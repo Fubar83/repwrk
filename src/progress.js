@@ -1,3 +1,5 @@
+import { paletteFor } from './color.js';
+
 /**
  * Progress reporting for work whose size is known up front.
  *
@@ -66,6 +68,7 @@ export class Progress {
     this.every = every;
     this.tty = Boolean(stream.isTTY);
     this.chars = barCharacters(stream);
+    this.ink = paletteFor(stream);
     this.started = now();
     this.done = 0;
     this.total = 0;
@@ -91,7 +94,10 @@ export class Progress {
     const eta = remaining === null ? '' : `, ${formatDuration(remaining)} left`;
 
     this.#clear();
-    this.stream.write(`${this.label} ${bar} ${count}${eta}`);
+    // Only ever drawn on a terminal, so the palette is always the live one.
+    this.stream.write(
+      `${this.label} ${this.ink.cyan(bar)} ${count}${this.ink.dim(eta)}`,
+    );
     this.drawn = true;
   }
 

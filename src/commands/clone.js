@@ -7,11 +7,15 @@ import { branchRepos } from '../git/branch.js';
 import { currentBranch, isValidBranchName } from '../git/git.js';
 import { GhError, runGh } from '../github/gh.js';
 import { listRepos } from '../github/repos.js';
+import { paletteFor } from '../color.js';
 import { byName } from '../order.js';
 import { Progress, formatDuration } from '../progress.js';
 import { holdsRepository, isRepository } from '../workspace.js';
 
 const plural = (count, one, many) => (count === 1 ? one : many);
+
+/** Everything this module prints is commentary, and commentary goes to stderr. */
+const note = paletteFor(process.stderr);
 
 /** A dotfile nobody chose to put there — .git excepted, which says a great deal. */
 const ignorable = (name) => name.startsWith('.') && name !== '.git';
@@ -88,11 +92,11 @@ export async function surveyRepos(repos, { directory, branch = null }) {
 /** How one line of the preview reads. */
 function describeEntry(entry, branch) {
   if (!entry.present) return '';
-  if (!entry.isRepo) return '  (already here, but not a git repository)';
+  if (!entry.isRepo) return note.yellow('  (already here, but not a git repository)');
   if (branch !== null && entry.on !== branch) {
     return `  (already here, on ${entry.on ?? 'an unknown branch'} — not ${branch})`;
   }
-  return '  (already here, will be skipped)';
+  return note.dim('  (already here, will be skipped)');
 }
 
 /**
@@ -195,18 +199,20 @@ export async function cloneRepos(repos, { directory }) {
 
     if (existsSync(target)) {
       skipped.push(repo);
-      process.stderr.write(`==> ${repo.nameWithOwner}: already here, skipped\n`);
+      process.stderr.write(
+        `${note.cyan('==>')} ${repo.nameWithOwner}: ${note.dim('already here, skipped')}\n`,
+      );
       continue;
     }
 
-    process.stderr.write(`==> ${repo.nameWithOwner}: cloning\n`);
+    process.stderr.write(`${note.cyan('==>')} ${repo.nameWithOwner}: cloning\n`);
     try {
       await runGh(['repo', 'clone', repo.nameWithOwner, target]);
       cloned.push({ repo: { ...repo, fresh: true }, path: target });
       process.stdout.write(`${repo.name}\n`);
     } catch (error) {
       failures.push({ repo, message: error.message });
-      process.stderr.write(`    failed: ${error.message}\n`);
+      process.stderr.write(`    ${note.red(`failed: ${error.message}`)}\n`);
     }
   }
 

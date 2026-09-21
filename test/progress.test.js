@@ -36,6 +36,9 @@ function fakeClock() {
   return now;
 }
 
+/** What a reader sees, with any colour escapes taken off. */
+const strip = (text) => text.replace(/\x1B\[\d+m/g, '');
+
 const lines = (stream) => stream.writes;
 
 test('the bar fills in proportion, and an unknown total fills nothing', () => {
@@ -89,7 +92,7 @@ test('the meter says how much longer once it can', () => {
   now.advance(10_000);
   progress.update(100, 1000);
 
-  assert.match(lines(stream).at(-1), /100\/1000, 1m30s left/);
+  assert.match(strip(lines(stream).at(-1)), /100\/1000, 1m30s left/);
 });
 
 test('finishing erases the bar and leaves the summary behind', () => {
@@ -138,4 +141,16 @@ test('an untouched meter can still be finished', () => {
   const progress = new Progress('listing', { stream, now: fakeClock() });
   assert.doesNotThrow(() => progress.finish());
   assert.equal(stream.text, '');
+});
+
+// The bar is only ever drawn on a terminal, so it may carry colour. The plain
+// lines a non-terminal gets must stay exactly as they always were.
+test('a drawn bar may be coloured, and a logged line never is', () => {
+  const drawn = fakeStream();
+  new Progress('listing', { stream: drawn, now: fakeClock() }).update(5, 10);
+  assert.match(strip(lines(drawn)[0]), /listing .* 5\/10/);
+
+  const logged = fakeStream({ tty: false });
+  new Progress('listing', { stream: logged, now: fakeClock(), every: 1 }).update(5, 10);
+  assert.deepEqual(lines(logged), ['listing 5/10\n'], 'no escapes reach a pipe');
 });
