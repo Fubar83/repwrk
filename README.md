@@ -274,6 +274,14 @@ $ repwrk foreach made-up-command
 error [api]: command not found: made-up-command
 ```
 
+## Colour
+
+Colour is decided per stream, not per process. `repwrk` puts data on stdout and commentary on stderr, and the two are redirected independently: `repwrk foreach > repos.txt` still wants a readable meter on the terminal, and escape codes in the file would be corruption.
+
+A stream that is not a terminal never gets colour, so a pipe receives exactly the bytes it would have without any of this — which is what keeps `repwrk foreach --parallel nuls | nuls --merge` working. `NO_COLOR` turns it off, `FORCE_COLOR` turns it on where nothing can be detected, and `FORCE_COLOR=0` is the explicit off switch.
+
+It marks a state rather than decorating one: a failed clone is red, a directory in the way that is not a repository is yellow, and an error is red — though the usage printed after an error stays plain, because that is help rather than the complaint.
+
 ## Exit codes
 
 | Code | Meaning |
