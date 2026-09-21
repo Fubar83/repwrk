@@ -13,10 +13,10 @@ Usage:
   repwrk foreach [-a|--at <glob>] [-p|--parallel] [--] [command] [arguments...]
 
 Commands:
-  clone      Clone repositories into the current directory
-  foreach    List repositories or targets, or run a command in each
+  clone      Clone repositories into the current directory   (clone --help)
+  foreach    List or run a command across repositories       (foreach --help)
 
-Run \`repwrk <command> --help\` for the options of a command.`;
+Each command's options are listed by its own --help, since they share none.`;
 
 export const CLONE_USAGE = `repwrk clone — clone repositories into the current directory
 
