@@ -1,22 +1,28 @@
+/**
+ * Every option is spelled both ways wherever it appears — in the synopsis as
+ * `-o|--owner`, in the options list as `-o, --owner`. A synopsis that shows
+ * only one of them makes the other look unsupported, and which half gets
+ * shown is exactly the thing nobody can remember.
+ */
+
 export const USAGE = `repwrk — work across many repositories at once
 
 Usage:
-  repwrk clone [--owner <owner>] [--team <team>] [--filter <glob>]...
-               [--language <lang>]... [--branch <branch>] [--no-confirm]
-  repwrk foreach [--at <glob>] [--parallel] [--] [command] [arguments...]
+  repwrk clone [-o|--owner <owner>] [-t|--team <team>] [-f|--filter <glob>]...
+               [-l|--language <lang>]... [-b|--branch <branch>] [--no-confirm]
+  repwrk foreach [-a|--at <glob>] [-p|--parallel] [--] [command] [arguments...]
 
 Commands:
   clone      Clone repositories into the current directory
   foreach    List repositories or targets, or run a command in each
 
-Every option has a one-letter form: -o -t -f -l -b for clone, -a -p for
-foreach. Run \`repwrk <command> --help\` for the options of a command.`;
+Run \`repwrk <command> --help\` for the options of a command.`;
 
 export const CLONE_USAGE = `repwrk clone — clone repositories into the current directory
 
 Usage:
-  repwrk clone [--owner <owner>] [--team <team>] [--filter <glob>]...
-               [--language <lang>]... [--branch <branch>] [--no-confirm]
+  repwrk clone [-o|--owner <owner>] [-t|--team <team>] [-f|--filter <glob>]...
+               [-l|--language <lang>]... [-b|--branch <branch>] [--no-confirm]
 
 Options:
   -o, --owner <owner>     User or organisation to clone from. Defaults to
@@ -53,7 +59,7 @@ Repositories that already exist locally are skipped, never overwritten.`;
 export const FOREACH_USAGE = `repwrk foreach — list or run a command across repositories
 
 Usage:
-  repwrk foreach [--at <glob>] [--parallel] [--] [command] [arguments...]
+  repwrk foreach [-a|--at <glob>] [-p|--parallel] [--] [command] [arguments...]
 
 Options:
   -a, --at <glob>   Execute at every path matching this glob inside each
@@ -75,8 +81,8 @@ to that command unchanged — so a one-letter option after the command is the
 command's, not repwrk's.`;
 
 export const FOREACH_HINT = `Usage:
-  repwrk foreach [--at <glob>] [--parallel] [--] [command] [arguments...]`;
+  repwrk foreach [-a|--at <glob>] [-p|--parallel] [--] [command] [arguments...]`;
 
 export const CLONE_HINT = `Usage:
-  repwrk clone [--owner <owner>] [--team <team>] [--filter <glob>]...
-               [--language <lang>]... [--branch <branch>] [--no-confirm]`;
+  repwrk clone [-o|--owner <owner>] [-t|--team <team>] [-f|--filter <glob>]...
+               [-l|--language <lang>]... [-b|--branch <branch>] [--no-confirm]`;
