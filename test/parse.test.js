@@ -148,12 +148,16 @@ test('unknown options are errors, never passed to the command', () => {
 
 // clone
 
-test('clone takes the whole v1 surface and nothing else', () => {
+test('clone takes the whole surface and nothing else', () => {
   assert.deepEqual(parse(['clone']), {
     name: 'clone',
     help: false,
     owner: null,
-    filter: null,
+    team: null,
+    // Repeatable options are always lists, so no caller has to tell one value
+    // apart from several, or from none.
+    filter: [],
+    language: [],
     branch: null,
     // Confirming is the default, so the parsed value is true until asked otherwise.
     confirm: true,
@@ -163,16 +167,49 @@ test('clone takes the whole v1 surface and nothing else', () => {
     'clone',
     '--owner',
     'my-org',
+    '--team',
+    'payments',
     '--filter',
     'customer-*',
+    '--language',
+    'C#',
     '--branch',
     'feature/foo',
     '--no-confirm',
   ]);
   assert.equal(full.owner, 'my-org');
-  assert.equal(full.filter, 'customer-*');
+  assert.equal(full.team, 'payments');
+  assert.deepEqual(full.filter, ['customer-*']);
+  assert.deepEqual(full.language, ['C#']);
   assert.equal(full.branch, 'feature/foo');
   assert.equal(full.confirm, false);
+});
+
+test('--filter and --language repeat, and keep the order they were given', () => {
+  const command = parse([
+    'clone',
+    '--filter',
+    'companyA*',
+    '--filter',
+    '*packages.internal*',
+    '--language',
+    'C#',
+    '--language',
+    'Type*',
+  ]);
+  assert.deepEqual(command.filter, ['companyA*', '*packages.internal*']);
+  assert.deepEqual(command.language, ['C#', 'Type*']);
+});
+
+test('a repeated --owner keeps the last one, since it cannot mean two owners', () => {
+  assert.equal(parse(['clone', '--owner', 'first', '--owner', 'second']).owner, 'second');
+});
+
+test('--team needs an organisation to look the team up in', () => {
+  refuses(['clone', '--team', 'payments'], '--team requires --owner');
+  refuses(['clone', '--team'], '--team requires a value');
+  // --help outranks it: asking how the flag works must not require using it right.
+  assert.equal(parse(['clone', '--team', 'payments', '--help']).help, true);
 });
 
 test('--no-confirm takes no value, and the old --yes is gone', () => {
@@ -194,7 +231,7 @@ test('clone takes no positional arguments', () => {
 });
 
 test('inline option values are accepted', () => {
-  assert.equal(parse(['clone', '--filter=customer-*']).filter, 'customer-*');
+  assert.deepEqual(parse(['clone', '--filter=customer-*']).filter, ['customer-*']);
   assert.equal(parse(['foreach', '--at=**/*lambda']).at, '**/*lambda');
 });
 

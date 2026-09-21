@@ -6,8 +6,9 @@ import { EXIT, RuntimeError, UsageError } from '../errors.js';
 import { branchRepos } from '../git/branch.js';
 import { currentBranch, isValidBranchName } from '../git/git.js';
 import { GhError, runGh } from '../github/gh.js';
-import { LIST_LIMIT, listRepos } from '../github/repos.js';
+import { listRepos } from '../github/repos.js';
 import { byName } from '../order.js';
+import { Progress, formatDuration } from '../progress.js';
 import { holdsRepository, isRepository } from '../workspace.js';
 
 const plural = (count, one, many) => (count === 1 ? one : many);
@@ -212,13 +213,58 @@ export async function cloneRepos(repos, { directory }) {
   return { cloned, skipped, failures };
 }
 
+/** What the meter is counting through, in words. */
+function listingLabel({ owner, team }) {
+  if (team) return `repwrk: listing ${owner}/${team}`;
+  if (owner) return `repwrk: listing ${owner}`;
+  return 'repwrk: listing your repositories';
+}
+
+/**
+ * Select the repositories to clone, reporting progress while GitHub is asked.
+ *
+ * A large organisation takes minutes to enumerate, so the listing is fetched a
+ * page at a time and the meter is driven from the page boundaries. The meter
+ * is taken down before anything else is printed, so whatever follows starts on
+ * a clean line whether or not a terminal was there to draw on.
+ */
+export async function selectForClone({ owner, team, filter = [], language = [] }) {
+  const progress = new Progress(listingLabel({ owner, team }));
+  progress.update(0, 0);
+
+  let repos;
+  let total;
+  try {
+    // Without --owner the authenticated account is the owner, as before.
+    ({ repos, total } = await listRepos({
+      owner: owner ?? undefined,
+      team: team ?? undefined,
+      patterns: filter,
+      language,
+      onProgress: ({ fetched, total: count }) => progress.update(fetched, count),
+    }));
+  } catch (error) {
+    progress.finish();
+    if (error instanceof GhError) throw new RuntimeError(error.message, { component: 'api' });
+    throw error;
+  }
+
+  const narrowed = filter.length > 0 || language.length > 0;
+  progress.finish(
+    `repwrk: listed ${total} ${plural(total, 'repository', 'repositories')} in ` +
+      `${formatDuration(progress.elapsed)}${narrowed ? `, ${repos.length} matched` : ''}`,
+  );
+
+  return repos;
+}
+
 /**
  * `repwrk clone`.
  *
  * Selects repositories, shows what it would clone, asks, then clones the ones
  * that are missing and puts those on a branch if asked.
  */
-export async function clone({ owner, filter, branch, confirm }) {
+export async function clone({ owner, team, filter = [], language = [], branch, confirm }) {
   if (branch !== null && !(await isValidBranchName(branch))) {
     // Checked before any cloning, so a typo costs a second rather than a
     // directory full of clones.
@@ -226,30 +272,7 @@ export async function clone({ owner, filter, branch, confirm }) {
   }
 
   const directory = process.cwd();
-
-  let repos;
-  let truncated;
-  try {
-    // Without --owner, gh's own default applies: the authenticated account.
-    ({ repos, truncated } = await listRepos({
-      owner: owner ?? undefined,
-      patterns: filter ? [filter] : [],
-    }));
-  } catch (error) {
-    if (error instanceof GhError) {
-      throw new RuntimeError(error.message, { component: 'api' });
-    }
-    throw error;
-  }
-
-  // --filter is applied to what GitHub returned, so a listing that reached the
-  // limit may be missing repositories the filter would have matched.
-  if (truncated) {
-    process.stderr.write(
-      `repwrk: GitHub returned the listing limit of ${LIST_LIMIT} repositories; ` +
-        'any beyond that were not considered\n',
-    );
-  }
+  const repos = await selectForClone({ owner, team, filter, language });
 
   if (repos.length === 0) {
     process.stderr.write('repwrk: no repositories matched\n');

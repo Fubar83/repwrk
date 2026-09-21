@@ -1,7 +1,8 @@
 export const USAGE = `repwrk — work across many repositories at once
 
 Usage:
-  repwrk clone [--owner <owner>] [--filter <glob>] [--branch <branch>] [--no-confirm]
+  repwrk clone [--owner <owner>] [--team <team>] [--filter <glob>]...
+               [--language <lang>]... [--branch <branch>] [--no-confirm]
   repwrk foreach [--at <glob>] [--parallel] [--] [command] [arguments...]
 
 Commands:
@@ -13,18 +14,33 @@ Run \`repwrk <command> --help\` for the options of a command.`;
 export const CLONE_USAGE = `repwrk clone — clone repositories into the current directory
 
 Usage:
-  repwrk clone [--owner <owner>] [--filter <glob>] [--branch <branch>] [--no-confirm]
+  repwrk clone [--owner <owner>] [--team <team>] [--filter <glob>]...
+               [--language <lang>]... [--branch <branch>] [--no-confirm]
 
 Options:
   --owner <owner>     User or organisation to clone from. Defaults to the
                       account gh is authenticated as.
-  --filter <glob>     Only clone repositories whose name matches this glob
+  --team <team>       Only repositories this team can reach, by its URL slug.
+                      Needs --owner, and a token with the read:org scope.
+                      In a large organisation this is also much the fastest
+                      way to select: only the team's repositories are listed.
+  --filter <glob>     Only clone repositories whose name matches this glob.
+                      Repeatable, and repeats are OR-ed:
+                        --filter 'companyA*' --filter '*packages.internal*'
+                      A glob containing a slash is matched against owner/name.
+  --language <lang>   Only repositories whose primary language matches this
+                      glob, case-insensitively. Repeatable and OR-ed, so
+                      --language C# --language 'Type*' keeps either. Combined
+                      with --filter as AND: both must hold.
   --branch <branch>   Create or check out this branch in newly cloned
                       repositories. Repositories that already exist locally
                       are skipped and never have their git state changed;
                       any of them not on the branch is reported.
   --no-confirm        Clone without asking for confirmation first
   --help              Show this help
+
+The listing is fetched a page at a time, with progress on stderr; it is
+complete, so a filter never silently misses repositories behind a limit.
 
 Clone lists the repositories it selected and asks before cloning them.
 Repositories that already exist locally are skipped, never overwritten.`;
@@ -56,4 +72,5 @@ export const FOREACH_HINT = `Usage:
   repwrk foreach [--at <glob>] [--parallel] [--] [command] [arguments...]`;
 
 export const CLONE_HINT = `Usage:
-  repwrk clone [--owner <owner>] [--filter <glob>] [--branch <branch>] [--no-confirm]`;
+  repwrk clone [--owner <owner>] [--team <team>] [--filter <glob>]...
+               [--language <lang>]... [--branch <branch>] [--no-confirm]`;

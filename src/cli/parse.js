@@ -21,7 +21,10 @@ const FOREACH_OPTIONS = {
 
 const CLONE_OPTIONS = {
   '--owner': { type: 'value', requires: 'a value' },
-  '--filter': { type: 'value', requires: 'a value' },
+  '--team': { type: 'value', requires: 'a value' },
+  // Repeatable, and OR-ed: each one widens the selection.
+  '--filter': { type: 'value', requires: 'a value', repeatable: true },
+  '--language': { type: 'value', requires: 'a value', repeatable: true },
   '--branch': { type: 'value', requires: 'a value' },
   '--no-confirm': { type: 'boolean' },
   '--help': { type: 'boolean' },
@@ -77,7 +80,10 @@ function parseOptions(argv, spec, hint) {
       throw new UsageError(`${key} requires ${definition.requires}`, { hint });
     }
 
-    options[key] = value;
+    // A repeatable option collects; a plain one keeps the last value given,
+    // which is what a shell alias overriding its own default relies on.
+    if (definition.repeatable) (options[key] ??= []).push(value);
+    else options[key] = value;
     index += attached === null ? 2 : 1;
   }
 
@@ -111,11 +117,21 @@ function parseClone(argv) {
     throw new UsageError(`unexpected argument '${rest[0]}'`, { hint: CLONE_HINT });
   }
 
+  // A team lives inside an organisation and cannot be resolved without one.
+  // Caught here so it costs nothing, rather than after a listing has started.
+  if (options['--team'] && !options['--owner'] && !options['--help']) {
+    throw new UsageError('--team requires --owner', { hint: CLONE_HINT });
+  }
+
   return {
     name: 'clone',
     help: Boolean(options['--help']),
     owner: options['--owner'] ?? null,
-    filter: options['--filter'] ?? null,
+    team: options['--team'] ?? null,
+    // Always a list, empty when unused, so no caller has to tell one filter
+    // apart from several — or from none.
+    filter: options['--filter'] ?? [],
+    language: options['--language'] ?? [],
     branch: options['--branch'] ?? null,
     // Confirming is what clone does; the flag turns it off. Carried as the
     // positive so every use site reads as the thing it decides.

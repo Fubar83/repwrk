@@ -1,6 +1,6 @@
 {
   "name": "@fub4r/repwrk",
-  "version": "0.1.1",
+  "version": "0.2.0",
   "description": "Work across many repositories at once: clone a set into a folder, then run commands across all of them",
   "keywords": [
     "git",
