@@ -2,6 +2,8 @@
 
 Work across many repositories at once. Clone a set of them into a folder, then run commands across all of them.
 
+`rep(o)` `w(o)rk`.
+
 A workspace is just a directory holding clones. There is no config file, no state file, and no workspace registry — `repwrk` reads the directory each time it runs.
 
 ```console
